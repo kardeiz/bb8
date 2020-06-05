@@ -72,10 +72,7 @@ struct NthConnectionFailManager<C> {
 
 impl<C> NthConnectionFailManager<C> {
     fn new(n: u32) -> Self {
-        NthConnectionFailManager {
-            n: Mutex::new(n),
-            _c: PhantomData,
-        }
+        NthConnectionFailManager { n: Mutex::new(n), _c: PhantomData }
     }
 }
 
@@ -136,11 +133,7 @@ async fn test_max_size_ok() {
 
 #[tokio::test]
 async fn test_acquire_release() {
-    let pool = Pool::builder()
-        .max_size(2)
-        .build(OkManager::<FakeConnection>::new())
-        .await
-        .unwrap();
+    let pool = Pool::builder().max_size(2).build(OkManager::<FakeConnection>::new()).await.unwrap();
 
     let (tx1, rx1) = oneshot::channel();
     let (tx2, rx2) = oneshot::channel();
@@ -275,9 +268,7 @@ async fn test_initialization_failure() {
 #[tokio::test]
 async fn test_lazy_initialization_failure() {
     let manager = NthConnectionFailManager::<FakeConnection>::new(0);
-    let pool = Pool::builder()
-        .connection_timeout(Duration::from_secs(1))
-        .build_unchecked(manager);
+    let pool = Pool::builder().connection_timeout(Duration::from_secs(1)).build_unchecked(manager);
 
     let res = pool
         .run(move |conn| {
@@ -416,9 +407,7 @@ async fn test_now_invalid() {
     tx4.send(()).unwrap();
 
     // Go idle for a bit
-    assert!(timeout(Duration::from_secs(3), pending::<()>())
-        .await
-        .is_err());
+    assert!(timeout(Duration::from_secs(3), pending::<()>()).await.is_err());
 
     // Now try to get a new connection.
     let r = pool
@@ -476,16 +465,12 @@ async fn test_max_lifetime() {
     rx1.await.unwrap();
 
     // And wait.
-    assert!(timeout(Duration::from_secs(2), pending::<()>())
-        .await
-        .is_err());
+    assert!(timeout(Duration::from_secs(2), pending::<()>()).await.is_err());
     assert_eq!(DROPPED.load(Ordering::SeqCst), 4);
     tx2.send(()).unwrap();
 
     // And wait some more.
-    assert!(timeout(Duration::from_secs(2), pending::<()>())
-        .await
-        .is_err());
+    assert!(timeout(Duration::from_secs(2), pending::<()>()).await.is_err());
     assert_eq!(DROPPED.load(Ordering::SeqCst), 5);
 }
 
@@ -524,10 +509,7 @@ async fn test_min_idle() {
         tx.push(tx2);
     }
 
-    FuturesUnordered::from_iter(rx)
-        .try_collect::<Vec<_>>()
-        .await
-        .unwrap();
+    FuturesUnordered::from_iter(rx).try_collect::<Vec<_>>().await.unwrap();
     let state = pool.state();
     assert_eq!(2, state.idle_connections);
     assert_eq!(5, state.connections);
@@ -537,9 +519,7 @@ async fn test_min_idle() {
     }
 
     // And wait for the connections to return.
-    assert!(timeout(Duration::from_secs(1), pending::<()>())
-        .await
-        .is_err());
+    assert!(timeout(Duration::from_secs(1), pending::<()>()).await.is_err());
 
     let state = pool.state();
     assert_eq!(5, state.idle_connections);
@@ -593,15 +573,10 @@ async fn test_conns_drop_on_pool_drop() {
             return;
         }
 
-        assert!(timeout(Duration::from_secs(1), pending::<()>())
-            .await
-            .is_err());
+        assert!(timeout(Duration::from_secs(1), pending::<()>()).await.is_err());
     }
 
-    panic!(
-        "Timed out waiting for connections to drop, {} dropped",
-        DROPPED.load(Ordering::SeqCst)
-    );
+    panic!("Timed out waiting for connections to drop, {} dropped", DROPPED.load(Ordering::SeqCst));
 }
 
 // make sure that bb8 retries after is_valid fails once
@@ -701,11 +676,7 @@ async fn test_conn_fail_once() {
 // This mimics the test_acquire_release test, but using the `get()` API.
 #[tokio::test]
 async fn test_guard() {
-    let pool = Pool::builder()
-        .max_size(2)
-        .build(OkManager::<FakeConnection>::new())
-        .await
-        .unwrap();
+    let pool = Pool::builder().max_size(2).build(OkManager::<FakeConnection>::new()).await.unwrap();
 
     let (tx1, rx1) = oneshot::channel();
     let (tx2, rx2) = oneshot::channel();

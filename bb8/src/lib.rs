@@ -176,10 +176,7 @@ where
 {
     fn make_idle(conn: Conn<C>) -> IdleConn<C> {
         let now = Instant::now();
-        IdleConn {
-            conn,
-            idle_start: now,
-        }
+        IdleConn { conn, idle_start: now }
     }
 }
 
@@ -298,10 +295,7 @@ impl<M: ManageConnection> Builder<M> {
     ///
     /// Defaults to 30 seconds.
     pub fn connection_timeout(mut self, connection_timeout: Duration) -> Builder<M> {
-        assert!(
-            connection_timeout > Duration::from_secs(0),
-            "connection_timeout must be non-zero"
-        );
+        assert!(connection_timeout > Duration::from_secs(0), "connection_timeout must be non-zero");
         self.connection_timeout = connection_timeout;
         self
     }
@@ -324,10 +318,7 @@ impl<M: ManageConnection> Builder<M> {
 
     fn build_inner(self, manager: M) -> Pool<M> {
         if let Some(min_idle) = self.min_idle {
-            assert!(
-                self.max_size >= min_idle,
-                "min_idle must be no larger than max_size"
-            );
+            assert!(self.max_size >= min_idle, "min_idle must be no larger than max_size");
         }
 
         Pool::new_inner(self, manager)
@@ -440,9 +431,7 @@ where
     M: ManageConnection,
 {
     fn clone(&self) -> Self {
-        Pool {
-            inner: self.inner.clone(),
-        }
+        Pool { inner: self.inner.clone() }
     }
 }
 
@@ -480,10 +469,7 @@ where
         match shared.manager.connect().await {
             Ok(conn) => {
                 let now = Instant::now();
-                let conn = IdleConn {
-                    conn: Conn { conn, birth: now },
-                    idle_start: now,
-                };
+                let conn = IdleConn { conn: Conn { conn, birth: now }, idle_start: now };
 
                 let mut locked = shared.internals.lock().await;
                 locked.pending_conns -= 1;
@@ -519,10 +505,7 @@ fn drop_connections<'a, M>(
     // We might need to spin up more connections to maintain the idle limit, e.g.
     // if we hit connection lifetime limits
     if internals.num_conns + internals.pending_conns < pool.statics.max_size {
-        Pool {
-            inner: pool.clone(),
-        }
-        .spawn_replenishing();
+        Pool { inner: pool.clone() }.spawn_replenishing();
     }
 }
 
@@ -567,11 +550,8 @@ impl<M: ManageConnection> Pool<M> {
             pending_conns: 0,
         };
 
-        let shared = Arc::new(SharedPool {
-            statics: builder,
-            manager,
-            internals: Mutex::new(internals),
-        });
+        let shared =
+            Arc::new(SharedPool { statics: builder, manager, internals: Mutex::new(internals) });
 
         if shared.statics.max_lifetime.is_some() || shared.statics.idle_timeout.is_some() {
             let s = Arc::downgrade(&shared);
@@ -631,11 +611,7 @@ impl<M: ManageConnection> Pool<M> {
             }
         };
 
-        State {
-            connections: locked.num_conns,
-            idle_connections: locked.conns.len() as u32,
-            _p: (),
-        }
+        State { connections: locked.num_conns, idle_connections: locked.conns.len() as u32, _p: () }
     }
 
     /// Run a closure with a `Connection`.
@@ -686,10 +662,7 @@ impl<M: ManageConnection> Pool<M> {
             if let Some(conn) = internals.conns.pop_front() {
                 // Spin up a new connection if necessary to retain our minimum idle count
                 if internals.num_conns + internals.pending_conns < inner.statics.max_size {
-                    Pool {
-                        inner: inner.clone(),
-                    }
-                    .spawn_replenishing();
+                    Pool { inner: inner.clone() }.spawn_replenishing();
                 }
 
                 if inner.statics.test_on_check_out {
@@ -731,11 +704,11 @@ impl<M: ManageConnection> Pool<M> {
     }
 
     /// Retrieves a connection from the pool.
-    pub async fn get(&self) -> Result<PooledConnection<'_, M>, RunError<M::Error>> {
+    pub async fn get(&self) -> Result<PooledConnection<M>, RunError<M::Error>> {
         self.get_conn::<M::Error>()
             .map(move |res| {
                 res.map(|conn| PooledConnection {
-                    pool: self,
+                    pool: Arc::downgrade(&self.inner),
                     checkout: Instant::now(),
                     conn: Some(conn),
                 })
@@ -756,16 +729,16 @@ impl<M: ManageConnection> Pool<M> {
 }
 
 /// A smart pointer wrapping a connection.
-pub struct PooledConnection<'a, M>
+pub struct PooledConnection<M>
 where
     M: ManageConnection,
 {
-    pool: &'a Pool<M>,
+    pool: Weak<SharedPool<M>>,
     checkout: Instant,
     conn: Option<Conn<M::Connection>>,
 }
 
-impl<'a, M> Deref for PooledConnection<'a, M>
+impl<M> Deref for PooledConnection<M>
 where
     M: ManageConnection,
 {
@@ -776,7 +749,7 @@ where
     }
 }
 
-impl<'a, M> DerefMut for PooledConnection<'a, M>
+impl<M> DerefMut for PooledConnection<M>
 where
     M: ManageConnection,
 {
@@ -785,7 +758,7 @@ where
     }
 }
 
-impl<'a, M> fmt::Debug for PooledConnection<'a, M>
+impl<M> fmt::Debug for PooledConnection<M>
 where
     M: ManageConnection,
     M::Connection: fmt::Debug,
@@ -795,15 +768,15 @@ where
     }
 }
 
-impl<'a, M> Drop for PooledConnection<'a, M>
+impl<M> Drop for PooledConnection<M>
 where
     M: ManageConnection,
 {
     fn drop(&mut self) {
         futures::executor::block_on(async {
-            self.pool
-                .put_back(self.checkout, self.conn.take().unwrap().conn)
-                .await;
+            if let Some(inner) = self.pool.upgrade() {
+                Pool { inner }.put_back(self.checkout, self.conn.take().unwrap().conn).await;
+            }
         })
     }
 }

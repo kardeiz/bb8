@@ -58,16 +58,13 @@ where
     type Error = Error;
 
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        self.config
-            .connect(self.tls.clone())
-            .await
-            .map(|(client, connection)| {
-                // The connection object performs the actual communication with the database,
-                // so spawn it off to run on its own.
-                tokio::spawn(connection.map(|_| ()));
+        self.config.connect(self.tls.clone()).await.map(|(client, connection)| {
+            // The connection object performs the actual communication with the database,
+            // so spawn it off to run on its own.
+            tokio::spawn(connection.map(|_| ()));
 
-                client
-            })
+            client
+        })
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
@@ -84,8 +81,6 @@ where
     Tls: MakeTlsConnect<Socket>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("PostgresConnectionManager")
-            .field("config", &self.config)
-            .finish()
+        f.debug_struct("PostgresConnectionManager").field("config", &self.config).finish()
     }
 }

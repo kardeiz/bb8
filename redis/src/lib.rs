@@ -52,9 +52,7 @@ impl RedisConnectionManager {
     /// Create a new `RedisConnectionManager`.
     /// See `redis::Client::open` for a description of the parameter types.
     pub fn new<T: IntoConnectionInfo>(info: T) -> Result<RedisConnectionManager, RedisError> {
-        Ok(RedisConnectionManager {
-            client: Client::open(info.into_connection_info()?)?,
-        })
+        Ok(RedisConnectionManager { client: Client::open(info.into_connection_info()?)? })
     }
 }
 
